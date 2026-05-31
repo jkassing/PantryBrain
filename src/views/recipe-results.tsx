@@ -23,7 +23,9 @@ type ViewState = {
 type DragState = {
   pointerId: number;
   startX: number;
+  startY: number;
   deltaX: number;
+  deltaY: number;
   moved: boolean;
 };
 
@@ -42,6 +44,7 @@ export default function RecipeResults() {
   });
   const [motionDirection, setMotionDirection] = useState<-1 | 0 | 1>(0);
   const dragRef = useRef<DragState | null>(null);
+  const lastTouchAtRef = useRef(0);
 
   const isSearching = toolInfo.isPending || toolInfo.isIdle;
   const data = toolInfo.isSuccess
@@ -72,30 +75,29 @@ export default function RecipeResults() {
 
   const openActiveRecipe = () => {
     if (!activeRecipe || dragRef.current?.moved) return;
-    window.setTimeout(() => {
-      setState({
-        ...state,
-        activeIndex,
-        selectedId: activeRecipe.id,
-      });
-    }, 0);
+    setState({
+      ...state,
+      activeIndex,
+      selectedId: activeRecipe.id,
+    });
   };
 
   const closeRecipe = () => {
-    window.setTimeout(() => {
-      setState({
-        ...state,
-        selectedId: null,
-      });
-    }, 0);
+    setState({
+      ...state,
+      selectedId: null,
+    });
   };
 
   const handlePointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
     if (event.currentTarget.dataset.front !== "true") return;
+    if (Date.now() - lastTouchAtRef.current < 650) return;
     dragRef.current = {
       pointerId: event.pointerId,
       startX: event.clientX,
+      startY: event.clientY,
       deltaX: 0,
+      deltaY: 0,
       moved: false,
     };
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -106,7 +108,8 @@ export default function RecipeResults() {
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
     drag.deltaX = event.clientX - drag.startX;
-    drag.moved = Math.abs(drag.deltaX) > 8;
+    drag.deltaY = event.clientY - drag.startY;
+    drag.moved = Math.abs(drag.deltaX) > 8 || Math.abs(drag.deltaY) > 8;
   };
 
   const handlePointerUp = (event: React.PointerEvent<HTMLButtonElement>) => {
@@ -116,6 +119,55 @@ export default function RecipeResults() {
     dragRef.current = null;
 
     if (Math.abs(drag.deltaX) >= SWIPE_THRESHOLD) {
+      moveSelection(drag.deltaX < 0 ? 1 : -1);
+      return;
+    }
+
+    if (!drag.moved) {
+      openActiveRecipe();
+    }
+  };
+
+  const handleTouchStart = (event: React.TouchEvent<HTMLButtonElement>) => {
+    if (event.currentTarget.dataset.front !== "true") return;
+    const touch = event.touches[0];
+    if (!touch) return;
+    lastTouchAtRef.current = Date.now();
+    dragRef.current = {
+      pointerId: -1,
+      startX: touch.clientX,
+      startY: touch.clientY,
+      deltaX: 0,
+      deltaY: 0,
+      moved: false,
+    };
+  };
+
+  const handleTouchMove = (event: React.TouchEvent<HTMLButtonElement>) => {
+    if (event.currentTarget.dataset.front !== "true") return;
+    const drag = dragRef.current;
+    const touch = event.touches[0];
+    if (!drag || !touch) return;
+    drag.deltaX = touch.clientX - drag.startX;
+    drag.deltaY = touch.clientY - drag.startY;
+    drag.moved = Math.abs(drag.deltaX) > 8 || Math.abs(drag.deltaY) > 8;
+
+    if (Math.abs(drag.deltaX) > Math.abs(drag.deltaY) && Math.abs(drag.deltaX) > 8) {
+      event.preventDefault();
+    }
+  };
+
+  const handleTouchEnd = (event: React.TouchEvent<HTMLButtonElement>) => {
+    if (event.currentTarget.dataset.front !== "true") return;
+    const drag = dragRef.current;
+    dragRef.current = null;
+    lastTouchAtRef.current = Date.now();
+    if (!drag) return;
+
+    if (
+      Math.abs(drag.deltaX) >= SWIPE_THRESHOLD &&
+      Math.abs(drag.deltaX) > Math.abs(drag.deltaY)
+    ) {
       moveSelection(drag.deltaX < 0 ? 1 : -1);
       return;
     }
@@ -167,6 +219,9 @@ export default function RecipeResults() {
                 onPointerDown={handlePointerDown}
                 onPointerMove={handlePointerMove}
                 onPointerUp={handlePointerUp}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
                 onOpenActive={openActiveRecipe}
                 motionDirection={motionDirection}
               />
@@ -222,6 +277,9 @@ function RecipeDeck({
   onPointerDown,
   onPointerMove,
   onPointerUp,
+  onTouchStart,
+  onTouchMove,
+  onTouchEnd,
   onOpenActive,
   motionDirection,
 }: {
@@ -232,6 +290,9 @@ function RecipeDeck({
   onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => void;
   onPointerMove: (event: React.PointerEvent<HTMLButtonElement>) => void;
   onPointerUp: (event: React.PointerEvent<HTMLButtonElement>) => void;
+  onTouchStart: (event: React.TouchEvent<HTMLButtonElement>) => void;
+  onTouchMove: (event: React.TouchEvent<HTMLButtonElement>) => void;
+  onTouchEnd: (event: React.TouchEvent<HTMLButtonElement>) => void;
   onOpenActive: () => void;
   motionDirection: -1 | 0 | 1;
 }) {
@@ -292,6 +353,9 @@ function RecipeDeck({
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
+            onTouchStart={onTouchStart}
+            onTouchMove={onTouchMove}
+            onTouchEnd={onTouchEnd}
             onKeyDown={(event) => {
               if (
                 position === "active" &&
@@ -360,6 +424,10 @@ function RecipeDetail({
           className="close-button"
           type="button"
           onClick={onBack}
+          onTouchEnd={(event) => {
+            event.preventDefault();
+            onBack();
+          }}
           aria-label="Close recipe"
           title="Close recipe"
         >
