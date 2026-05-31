@@ -10,7 +10,7 @@ import {
   Users,
 } from "lucide-react";
 import { useRef, useState } from "react";
-import { useLayout, useOpenExternal, useViewState } from "skybridge/web";
+import { useOpenExternal, useViewState } from "skybridge/web";
 import { useToolInfo } from "@/helpers.js";
 import pantryBrainLockup from "@/views/images/pantrybrain-lockup.png";
 import type { RecipeResult, RecipeSearchOutput } from "@/types.js";
@@ -34,7 +34,6 @@ const CARD_ANIMATION_MS = 360;
 const DEFAULT_SERVINGS = 4;
 
 export default function RecipeResults() {
-  const { theme } = useLayout();
   const openExternal = useOpenExternal();
   const toolInfo = useToolInfo<"find_recipes">();
   const [state, setState] = useViewState<ViewState>({
@@ -136,7 +135,7 @@ export default function RecipeResults() {
 
   return (
     <main
-      className={`${theme === "dark" ? "dark" : ""} pantry-shell`}
+      className="pantry-shell"
       data-llm={rootContext}
     >
       <section className="pantry-panel">
