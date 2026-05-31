@@ -36,7 +36,7 @@ const DEFAULT_SERVINGS = 4;
 export default function RecipeResults() {
   const { theme } = useLayout();
   const openExternal = useOpenExternal();
-  const { output } = useToolInfo<"find_recipes">();
+  const toolInfo = useToolInfo<"find_recipes">();
   const [state, setState] = useViewState<ViewState>({
     activeIndex: 0,
     selectedId: null,
@@ -44,7 +44,10 @@ export default function RecipeResults() {
   const [motionDirection, setMotionDirection] = useState<-1 | 0 | 1>(0);
   const dragRef = useRef<DragState | null>(null);
 
-  const data = output as RecipeSearchOutput | undefined;
+  const isSearching = toolInfo.isPending || toolInfo.isIdle;
+  const data = toolInfo.isSuccess
+    ? (toolInfo.output as RecipeSearchOutput)
+    : undefined;
   const recipes = data?.recipes ?? [];
   const storedActiveIndex = Number.isFinite(state.activeIndex)
     ? state.activeIndex
@@ -123,11 +126,13 @@ export default function RecipeResults() {
     }
   };
 
-  const rootContext = selected
-    ? `PantryBrain is showing the full recipe for "${selected.title}" from ${selected.source}.`
-    : activeRecipe
-      ? `PantryBrain is browsing ${recipes.length} recipe options. No recipe is selected. Front card is "${activeRecipe.title}" from ${activeRecipe.source}.`
-      : "PantryBrain did not find a complete real recipe for this request.";
+  const rootContext = isSearching
+    ? "PantryBrain is searching trusted cooking sources for complete real recipes. No recipe is selected yet."
+    : selected
+      ? `PantryBrain is showing the full recipe for "${selected.title}" from ${selected.source}.`
+      : activeRecipe
+        ? `PantryBrain is browsing ${recipes.length} recipe options. No recipe is selected. Front card is "${activeRecipe.title}" from ${activeRecipe.source}.`
+        : "PantryBrain completed the search and did not find a complete real recipe for this request.";
 
   return (
     <main
@@ -143,7 +148,9 @@ export default function RecipeResults() {
           <p className="pantry-notice">{data.fallbackMessage}</p>
         ) : null}
 
-        {recipes.length ? (
+        {isSearching ? (
+          <SearchingState />
+        ) : recipes.length ? (
           <section className="recipe-stage">
             {isDetailOpen && selected ? (
               <RecipeDetail
@@ -177,6 +184,26 @@ export default function RecipeResults() {
         )}
       </section>
     </main>
+  );
+}
+
+function SearchingState() {
+  return (
+    <div
+      className="searching-state"
+      role="status"
+      aria-live="polite"
+      data-llm="PantryBrain is searching real recipe sites. No recipe is selected yet."
+    >
+      <span className="searching-kicker">PantryBrain is cooking up matches</span>
+      <h2>Searching real recipe sites...</h2>
+      <p>Checking trusted cooking sources for complete recipes.</p>
+      <span className="searching-dots" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+      </span>
+    </div>
   );
 }
 
